@@ -5,9 +5,11 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.ParcelUuid;
+import android.speech.RecognizerIntent;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.text.InputType;
@@ -21,6 +23,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.Locale;
 import java.util.UUID;
 
 
@@ -33,6 +37,9 @@ public class AttributeActivity extends ActionBarActivity {
     String sAttr;
     ManifestResolver.ManifestFormatEntry [] fields;
     View [] fieldUI;
+
+    private final int REQ_CODE_SPEECH_INPUT = 100;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -110,6 +117,50 @@ public class AttributeActivity extends ActionBarActivity {
         }
     };
 
+    private byte[] stringToBytes(String s) {
+        // returns at most 20 bytes
+        char[] c = s.toCharArray();
+        byte[] ret = new byte[s.length() > 20 ? 20 : s.length()];
+        for (int i = 0; i < ret.length; i++) {
+            ret[i] = (byte) c[i];
+        }
+        return ret;
+    }
+
+    private void promptSpeechInput() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT,
+                getString(R.string.speech_prompt));
+        try {
+            startActivityForResult(intent, REQ_CODE_SPEECH_INPUT);
+        } catch (ActivityNotFoundException a) {
+            Toast.makeText(getApplicationContext(),
+                    getString(R.string.speech_not_found),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        switch (requestCode) {
+            case REQ_CODE_SPEECH_INPUT: {
+                if (resultCode == RESULT_OK && null != data) {
+
+                    ArrayList<String> result = data
+                            .getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                    Toast.makeText(getBaseContext(), result.get(0), Toast.LENGTH_SHORT).show();
+                    send(stringToBytes(result.get(0)));
+                }
+                break;
+            }
+
+        }
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -138,16 +189,12 @@ public class AttributeActivity extends ActionBarActivity {
         for (ManifestResolver.ManifestFormatEntry mfe : fields) {
             System.out.println(mfe);
         }
-        if (send(chardata)) {
-            Toast.makeText(getBaseContext(), "Sent Write", Toast.LENGTH_LONG).show();
-        } else {
-            Toast.makeText(getBaseContext(), "Failed to Write", Toast.LENGTH_LONG).show();
-        }
+        send(chardata);
         //Get the values of all the fields
     }
 
     public void rbOnClick(View v) {
-
+        promptSpeechInput();
     }
 
     public void nbOnClick(View v) {
@@ -172,6 +219,13 @@ public class AttributeActivity extends ActionBarActivity {
 
         characteristic.setValue(data);
 //        characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
-        return gatt.writeCharacteristic(characteristic);
+        boolean result = gatt.writeCharacteristic(characteristic);
+
+        if (result) {
+            Toast.makeText(getBaseContext(), "Sent Write", Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(getBaseContext(), "Failed to Write", Toast.LENGTH_LONG).show();
+        }
+        return result;
     }
 }

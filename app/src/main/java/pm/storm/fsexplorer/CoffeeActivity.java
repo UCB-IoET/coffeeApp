@@ -162,7 +162,7 @@ public class CoffeeActivity extends ActionBarActivity {
     {
         final AlertDialog.Builder popDialog = new AlertDialog.Builder(this);
         final SeekBar seek = new SeekBar(this);
-        seek.setMax(255);
+        seek.setMax(8000);
 
 //        popDialog.setIcon(android.R.drawable.btn_star_big_on);
         popDialog.setTitle("How much coffee? (0-2 cups)");
@@ -210,8 +210,10 @@ public class CoffeeActivity extends ActionBarActivity {
     }
 
     protected void sendMakeCoffee() {
-        byte[] data = {(byte) coffeeAmount};
-        double cups = ((double) coffeeAmount) * (2.0/255.0);
+        byte[] data = new byte[2];
+        data[0] = (byte) (coffeeAmount & 0xff);
+        data[1] = (byte) (coffeeAmount >> 8);
+        double cups = ((double) coffeeAmount) * (2.0/8000.0);
         String shortCups = Double.toString(cups).substring(0,4);
         if (send(data)) {
             Toast.makeText(getBaseContext(), "Making " + shortCups + " cups of coffee!", Toast.LENGTH_LONG).show();
